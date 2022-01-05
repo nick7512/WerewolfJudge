@@ -124,6 +124,8 @@ flutter:
     - assets/images/wolf_king.png
     - assets/images/wolf_queen.png
     - assets/images/black_trader.png
+    - assets/images/shadow.png
+    - assets/images/advenger.png
     - assets/app_icon.png
     - assets/offerly_icon.png
 

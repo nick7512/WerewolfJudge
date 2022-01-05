@@ -53,6 +53,9 @@ const String pervert = '老流氓';
 const String wolfRobot = '机械狼';
 const String psychic = '通灵师';
 const String wolfBrother = '狼兄';
+//影復
+const String shadow = '影子';
+const String avenger = '復仇者';
 
 class _ConfigPageState extends State<ConfigPage> {
   final scrollController = ScrollController();
@@ -96,6 +99,9 @@ class _ConfigPageState extends State<ConfigPage> {
     wolfRobot: false,
     psychic: false,
     wolfBrother: false,
+    //影復
+    shadow: false,
+    avenger: false
   };
   bool showShadow = false, shouldVibrate = false;
 
@@ -248,6 +254,13 @@ class _ConfigPageState extends State<ConfigPage> {
                       break;
                     case wolfBrother:
                       roles.add(WolfBrother());
+                      break;
+                    //影復
+                    case shadow:
+                      roles.add(Shadow());
+                      break;
+                    case avenger:
+                      roles.add(Avenger());
                       break;
                     default:
                       throw Exception("Unmatched role: ${i.key}");
@@ -576,7 +589,7 @@ class _ConfigPageState extends State<ConfigPage> {
                   buildFilterChip(tree),
                   buildFilterChip(magician),
                   buildFilterChip(witcher),
-                  buildFilterChip(psychic),
+                  buildFilterChip(psychic)
                 ],
               ),
             ),
@@ -591,6 +604,9 @@ class _ConfigPageState extends State<ConfigPage> {
                   buildFilterChip(cupid),
                   buildFilterChip(thief),
                   buildFilterChip(bride),
+                  //影復
+                  buildFilterChip(shadow),
+                  buildFilterChip(avenger),
                 ],
               ),
             ),
@@ -603,7 +619,7 @@ class _ConfigPageState extends State<ConfigPage> {
             ),
             Divider(),
             Padding(
-                padding: EdgeInsets.only(left: 12), child: Text("该应用可以充当第一夜法官的板子有：狼美守卫, 狼兄黑商, 石像鬼守墓人, 梦魇守卫, 血月猎魔, 狼王摄梦人, 狼王魔术师, 机械狼通灵师。")),
+                padding: EdgeInsets.only(left: 12), child: Text("该应用可以充当第一夜法官的板子有：狼美守卫, 狼兄黑商, 石像鬼守墓人, 梦魇守卫, 血月猎魔, 狼王摄梦人, 狼王魔术师, 机械狼通灵师, 帝尊魔皇-九天圣人, 影子復仇者。")),
             SizedBox(
               height: 36,
             ),

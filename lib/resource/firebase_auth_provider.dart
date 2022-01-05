@@ -283,7 +283,11 @@ class FirebaseAuthProvider {
       '黑商',
       '禁票长老',
       '通灵师',
-      '摄梦人'
+      '摄梦人',
+      '影子',
+      '復仇者',
+      '帝尊魔皇',
+      '九天圣人'
     ];
 
     var randomNum = Random(DateTime.now().microsecond).nextInt(adjs.length);

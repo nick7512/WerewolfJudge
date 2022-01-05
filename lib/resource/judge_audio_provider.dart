@@ -29,6 +29,9 @@ class JudgeAudioProvider {
     WolfBrother: 'audio/wolf_brother.m4a',
     LuckySon: 'audio/lucky_son.m4a',
     Slacker: 'audio/slacker.m4a',
+    //影復
+    Shadow: 'audio/shadow.m4a',
+    Avenger: 'audio/avenger.m4a',
   };
 
   final Map<Type, String> _rolesToEndAudio = {
@@ -52,6 +55,9 @@ class JudgeAudioProvider {
     WolfBrother: 'audio_end/wolf_brother.m4a',
     LuckySon: 'audio/night.m4a',
     Slacker: 'audio_end/slacker.m4a',
+    //影復
+    Shadow: 'audio_end/shadow.m4a',
+    Avenger: 'audio_end/avenger.m4a',
   };
 
   String getBeginningAudio(Role role) => _rolesToAudio[role.runtimeType];

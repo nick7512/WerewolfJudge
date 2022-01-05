@@ -36,7 +36,10 @@ class RoleImageProvider {
     WolfQueen: 'wolf_queen.png',
     WolfRobot: 'wolf_seeder.png',
     WolfSeeder: 'wolf_seeder.png',
-    WolfBrother: 'wolf_king.png'
+    WolfBrother: 'wolf_king.png',
+    //影復
+    Shadow: 'shadow.png',
+    Avenger: 'avenger.png',
   };
 
   operator [](Role role) => 'assets/images/' + _roleToImagePath[role.runtimeType];

@@ -200,11 +200,10 @@ class FirestoreProvider {
   }
 
   static void handleData(DocumentSnapshot docSnap, Sink sink) {
-    print("asd1");
     var data = docSnap.data() as Map;
     var actions = (data[actionsKey] as Map<String, dynamic>).map((key, value) =>
         MapEntry(Player.indexToRole(int.parse(key)).runtimeType, value as int));
-    print("asd2");
+
     var roomNumber = docSnap.id;
     var roomStatus = RoomStatus.values.elementAt(data[roomStatusKey] ?? 0);
     var hostUid = data[hostUidKey];
@@ -229,20 +228,10 @@ class FirestoreProvider {
         hasPoison: hasPoison,
         hasAntidote: hasAntidote,
         players: players);
-    print("asd9");
 
-    print(players);
-
-//    room.players.clear();
-//    room.players.addAll(players);
-
-    print(room.players);
-
-    print("asd0");
-
-    print("$room");
-
-    print("asd00");
+    print('Players: $players');
+    print("room.players: ${room.players}");
+    print("Room: $room");
 
     sink.add(room);
   }

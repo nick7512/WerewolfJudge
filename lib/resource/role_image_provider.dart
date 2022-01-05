@@ -1,4 +1,4 @@
-import 'package:werewolfjudge/model/role.dart';
+import 'package:werewolfjudge/model/character/role.dart';
 import 'package:werewolfjudge/resource/firestore_provider.dart';
 
 class RoleImageProvider {

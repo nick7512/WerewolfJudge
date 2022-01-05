@@ -1,4 +1,4 @@
-import 'role.dart';
+import 'character/role.dart';
 
 enum Status { dead, alive }
 
@@ -121,6 +121,11 @@ class Player {
         return 29;
       case LuckySon:
         return 30;
+      //影復
+      case Shadow:
+        return 31;
+      case Avenger:
+        return 32;
       default:
         throw Exception("No corresponding index found for $type");
     }
@@ -204,8 +209,18 @@ class Player {
         return WolfBrother();
       case 30:
         return LuckySon();
+      //影復
+      case 31:
+        return Shadow();
+      case 32:
+        return Avenger();
       default:
         throw Exception("No corresponding role found for $index");
     }
+  }
+
+  @override
+  String toString() {
+    return 'Player: {_displayName: ${_displayName}, _seatNumber: ${_seatNumber}, _role: ${_role}, _status: ${_status}, _skillStatus: ${_skillStatus}}';
   }
 }

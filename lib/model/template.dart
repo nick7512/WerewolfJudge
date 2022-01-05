@@ -1,13 +1,13 @@
 import 'dart:math';
 
-import 'package:werewolfjudge/model/wolf_brother.dart';
 import 'package:werewolfjudge/util/list_extension.dart';
 
-import 'role.dart';
+import 'character/role.dart';
 
 export 'player.dart';
 
 List<Role> allActionOrder = <Role>[
+  Shadow(),
   Slacker(),
   WolfRobot(),
   Magician(),
@@ -25,7 +25,8 @@ List<Role> allActionOrder = <Role>[
   WolfKing(),
   BlackTrader(),
   Moderator(),
-  LuckySon()
+  LuckySon(),
+  Avenger()
 ];
 
 abstract class Template {
@@ -107,4 +108,9 @@ class CustomTemplate extends Template {
             numberOfPlayers: roles.length,
             roles: roles.map((e) => e as Role).toList(),
             actionOrder: allActionOrder.where((value) => roles.hasType(value)).toList());
+
+  @override
+  String toString() {
+    return 'Template: {name: ${name}, numberOfPlayers: ${numberOfPlayers}, roles: ${roles}, actionOrder: ${actionOrder} }';
+  }
 }

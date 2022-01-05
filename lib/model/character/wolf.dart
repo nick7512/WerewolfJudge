@@ -1,4 +1,4 @@
-import 'actionable_mixin.dart';
+import '../actionable_mixin.dart';
 import 'role.dart';
 
 export 'wolf_queen.dart';

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:werewolfjudge/model/role.dart';
+import 'package:werewolfjudge/model/character/role.dart';
 
 
 class BlackTraderDialog extends StatefulWidget {

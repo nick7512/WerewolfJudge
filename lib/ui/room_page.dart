@@ -5,14 +5,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:jdenticon_dart/jdenticon_dart.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:transparent_image/transparent_image.dart';
 import 'package:wakelock/wakelock.dart';
-import 'package:werewolfjudge/bloc/history_bloc.dart';
 import 'package:werewolfjudge/model/actionable_mixin.dart';
 import 'package:werewolfjudge/resource/firebase_auth_provider.dart';
 import 'package:werewolfjudge/resource/firestore_provider.dart';
@@ -26,7 +24,8 @@ import 'components/black_trader_dialog.dart';
 class RoomPage extends StatefulWidget {
   final String roomNumber;
 
-  RoomPage({@required this.roomNumber}) : assert(roomNumber != null && roomNumber.length == 4);
+  RoomPage({@required this.roomNumber})
+      : assert(roomNumber != null && roomNumber.length == 4);
 
   @override
   _RoomPageState createState() => _RoomPageState();
@@ -51,9 +50,10 @@ class _RoomPageState extends State<RoomPage> {
       hasShownLuckySonDialog = false,
       hasPlayedLuckSon = false,
       artworkEnabled = false,
-      hasSkilledWolf = false,
+      mHasSkilledWolf = false,
       giftDialogShowed = false;
-  Room room;
+  Room mRoom;
+  Role mRole;
   double gridHeight;
 
   ///天亮后的发言顺序
@@ -63,9 +63,9 @@ class _RoomPageState extends State<RoomPage> {
   void initState() {
     if (!kIsWeb) Wakelock.enable();
 
-    artworkEnabled = SharedPreferencesProvider.instance.getArtworkEnabled();
-
     super.initState();
+
+    artworkEnabled = SharedPreferencesProvider.instance.getArtworkEnabled();
   }
 
   @override
@@ -78,7 +78,7 @@ class _RoomPageState extends State<RoomPage> {
 
   @Deprecated('Overwrite leading button is more customizable.')
   Future<bool> onWillPop() async {
-    if (room.roomStatus == RoomStatus.terminated) return true;
+    if (mRoom.roomStatus == RoomStatus.terminated) return true;
 
     Widget cancelButton = TextButton(
       child: Text("取消"),
@@ -119,7 +119,7 @@ class _RoomPageState extends State<RoomPage> {
                 leading: IconButton(
                   icon: Icon(Icons.arrow_back_ios),
                   onPressed: () {
-                    if (room.roomStatus == RoomStatus.terminated) {
+                    if (mRoom.roomStatus == RoomStatus.terminated) {
                       Navigator.popUntil(context, (route) => route.isFirst);
                       return null;
                     }
@@ -156,76 +156,72 @@ class _RoomPageState extends State<RoomPage> {
             body: StreamBuilder(
               stream: FirestoreProvider.instance.fetchRoom(widget.roomNumber),
               builder: (_, AsyncSnapshot<Room> snapshot) {
+                //TODO: Why need if
                 if (snapshot.hasData) {
-                  room = snapshot.data;
-                  gridHeight ??= ((MediaQuery.of(context).size.width / 4) + 12) * ((room.template.roles.length / 4).ceil());
-                  hasSkilledWolf ??= room.hasSkilledWolf;
+                  mRoom = snapshot.data;
+                  gridHeight ??=
+                      ((MediaQuery.of(context).size.width / 4) + 12) *
+                          ((mRoom.template.roles.length / 4).ceil());
+                  mHasSkilledWolf ??= mRoom.hasSkilledWolf;
+                  //check user is host or not
+                  imHost = isHostUid(myUid);
 
-                  var players = room.players;
-
-                  var seatToPlayerMap = room.players;
+                  var players = mRoom.players;
+                  var seatToPlayerMap = mRoom.players;
+                  var status = mRoom.roomStatus;
 
                   for (var i in Iterable.generate(players.length)) {
-                    if (players[i] != null && players[i].uid == myUid) {
+                    if (players[i] != null && players[i].uid == myUid)
                       mySeatNumber = i;
-                    }
                   }
 
-                  if (myUid == room.hostUid) {
-                    imHost = true;
-                  } else {
-                    imHost = false;
-                  }
+                  //provide user role
+                  if (status != RoomStatus.seating && mySeatNumber != null)
+                    myRole = mRoom.template.roles[mySeatNumber];
 
-                  if (room.roomStatus != RoomStatus.seating && mySeatNumber != null) {
-                    myRole = room.template.roles[mySeatNumber];
-
-                    debugPrint("天黑");
-                  }
-
-                  if (room.roomStatus == RoomStatus.seating) {
-                    imActioner = false;
-                    showWolves = false;
-                    hasShown = false;
-                    firstNightEnded = false;
-                    imMagician = false;
-                    luckySonPlayed = false;
-                    hasShownLuckySonDialog = false;
-                    hasPlayedLuckSon = false;
-                    artworkEnabled = false;
-                    hasSkilledWolf = false;
-                    giftDialogShowed = false;
-                  } else if (room.roomStatus == RoomStatus.ongoing) {
-                    if (room.currentActionRole == null) {
+                  if (status == RoomStatus.seating)
+                    initialRoomStatus();
+                  else if (status == RoomStatus.ongoing) {
+                    debugPrint("天黑了");
+                    if (mRoom.currentActionRole == null) {
                       firstNightEnded = true;
                       imActioner = false;
                       showWolves = false;
-                    } else if (room.currentActionRole is LuckySon) {
+                    } else if (mRoom.currentActionRole is LuckySon) {
                       imActioner = false;
 
                       if (hasShownLuckySonDialog == false) {
                         hasShownLuckySonDialog = true;
 
-                        WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+                        WidgetsBinding.instance
+                            .addPostFrameCallback((timeStamp) {
                           showLuckySonVerificationDialog();
                         });
                       }
-                    } else if (myRole.runtimeType == room.currentActionRole.runtimeType) {
+                    } else if (myRole.runtimeType ==
+                        mRoom.currentActionRole.runtimeType) {
                       //wolfking.runtimeType does not equal to wolf.runTimeType
                       imActioner = true;
 
                       if (hasShown == false) {
                         hasShown = true;
 
-                        WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
+                        WidgetsBinding.instance
+                            .addPostFrameCallback((timeStamp) {
                           Timer(Duration(seconds: 3), () {
-                            if (room.currentActionerSkillStatus) {
+                            if (mRoom.isSkillBlockByNightmare) {
                               if (myRole is Witch) {
-                                showWitchActionDialog(room.killedIndex);
+                                showWitchActionDialog(mRoom.killedIndex);
                               } else if (myRole is Hunter) {
-                                showHunterStatusDialog(myRole as ActionableMixin);
+                                showHunterStatusDialog(
+                                    myRole as ActionableMixin);
                               } else if (myRole is WolfBrother) {
-                                showWolfBrotherActionMessage(myRole as ActionableMixin);
+                                showWolfBrotherActionMessage(
+                                    myRole as ActionableMixin);
+                              } else if (myRole is Avenger) {
+                                //TODO
+                                showAvengerStatusDialog(mRoom.killedIndex,
+                                    myRole as ActionableMixin);
                               } else {
                                 showActionMessage(myRole as ActionableMixin);
                               }
@@ -236,34 +232,23 @@ class _RoomPageState extends State<RoomPage> {
                         });
                       }
 
-                      if (myRole is Wolf &&
-                          myRole is Nightmare == false &&
-                          myRole is Gargoyle == false &&
-                          myRole is HiddenWolf == false &&
-                          myRole is WolfRobot == false &&
-                          myRole is WolfBrother == false) {
-                        showWolves = true;
-                      }
+                      showWolves = isShowingWolf();
 
                       //如果有与普通狼人见面的技能狼，普狼不能开刀
-                      if (room.currentActionRole.runtimeType == Wolf) {
-                        if (room.hasSkilledWolf && myRole.runtimeType == Wolf) {
+                      if (mRoom.currentActionRole.runtimeType == Wolf) {
+                        if (mRoom.hasSkilledWolf &&
+                            myRole.runtimeType == Wolf) {
                           imActioner = false;
-                        } else if (mySeatNumber == room.actionWolfIndex) {
+                        } else if (mySeatNumber == mRoom.actionWolfIndex) {
                           imActioner = true;
                         } else {
                           imActioner = false;
                         }
                       }
-                    } else if (room.currentActionRole is Wolf &&
-                        (myRole is WolfKing ||
-                            myRole is WolfQueen ||
-                            myRole is Nightmare ||
-                            myRole is WolfBrother ||
-                            myRole is BloodMoon)) {
+                    } else if (isSpecialWolf(mRoom.currentActionRole)) {
                       WidgetsBinding.instance.addPostFrameCallback((timeStamp) {
                         Timer(Duration(seconds: 3), () {
-                          if (room.currentActionerSkillStatus)
+                          if (mRoom.isSkillBlockByNightmare)
                             showActionMessage(Wolf());
                           else
                             showActionForbiddenDialog();
@@ -278,11 +263,13 @@ class _RoomPageState extends State<RoomPage> {
 
                     print("firstNightEnded: $firstNightEnded");
 
-                    if (imHost && room.roomStatus != RoomStatus.terminated) {
+                    if (imHost && mRoom.roomStatus != RoomStatus.terminated) {
                       if (firstNightEnded) {
-                        if (room.template.rolesType.contains(BlackTrader)) {
-                          String endAudioPath = JudgeAudioProvider.instance.night;
-                          String audioPath = JudgeAudioProvider.instance.nightEnd;
+                        if (mRoom.template.rolesType.contains(BlackTrader)) {
+                          String endAudioPath =
+                              JudgeAudioProvider.instance.night;
+                          String audioPath =
+                              JudgeAudioProvider.instance.nightEnd;
 
                           var timelapse = Duration(seconds: 5);
 
@@ -290,26 +277,32 @@ class _RoomPageState extends State<RoomPage> {
 
                           Timer(timelapse, () {
                             playAudio(audioPath);
-                            room.terminate();
+                            mRoom.terminate();
                           });
                         } else {
-                          String endAudioPath = JudgeAudioProvider.instance.getEndingAudio(room.lastActionRole);
+                          String endAudioPath = JudgeAudioProvider.instance
+                              .getEndingAudio(mRoom.lastActionRole);
                           var timelapse = Duration(seconds: 5);
                           playAudio(endAudioPath);
                           Timer(timelapse, () {
                             playAudio(JudgeAudioProvider.instance.nightEnd);
-                            room.terminate();
+                            mRoom.terminate();
                           });
                         }
                       } else {
-                        String endAudioPath = JudgeAudioProvider.instance.getEndingAudio(room.lastActionRole);
-                        String audioPath = JudgeAudioProvider.instance.getBeginningAudio(room.currentActionRole);
+                        String endAudioPath = JudgeAudioProvider.instance
+                            .getEndingAudio(mRoom.lastActionRole);
+                        String audioPath = JudgeAudioProvider.instance
+                            .getBeginningAudio(mRoom.currentActionRole);
 
                         var timelapse = Duration(seconds: 5);
 
-                        if (room.template.rolesType.contains(BlackTrader) == false ||
-                            (room.template.rolesType.contains(BlackTrader) && hasPlayedLuckSon == false)) {
-                          if (room.currentActionRole is LuckySon) hasPlayedLuckSon = true;
+                        if (mRoom.template.rolesType.contains(BlackTrader) ==
+                                false ||
+                            (mRoom.template.rolesType.contains(BlackTrader) &&
+                                hasPlayedLuckSon == false)) {
+                          if (mRoom.currentActionRole is LuckySon)
+                            hasPlayedLuckSon = true;
 
                           if (endAudioPath != null) {
                             playAudio(endAudioPath);
@@ -322,27 +315,30 @@ class _RoomPageState extends State<RoomPage> {
                         }
                       }
                     }
-                  } else if (room.roomStatus == RoomStatus.terminated) {
+                  } else if (mRoom.roomStatus == RoomStatus.terminated)
                     firstNightEnded = true;
-                  }
 
                   String actionMessage;
-
+                  var role = mRoom.currentActionRole;
                   if (imActioner) {
-                    if (room.currentActionRole.runtimeType == Wolf) {
+                    if (role.runtimeType == Wolf)
                       actionMessage = Wolf().actionMessage;
-                    } else
+                    else
                       actionMessage = (myRole as ActionableMixin).actionMessage;
                   }
 
-                  print("currentRole is ${room.currentActionRole}");
-                  print("currentRole.runtimeType is ${room.currentActionRole.runtimeType}");
-                  print("${room.currentActionRole is Wolf}");
-                  print("${room.currentActionRole.runtimeType is Wolf}");
+                  debugPrint("currentRole是房間的角色");
+                  print("CRole is $role");
+                  print("CRole.runtimeType is ${role.runtimeType}");
+                  print("CRole is Wolf? ${role is Wolf}");
+                  print(
+                      "CRole.runtimeType is Wolf? ${role.runtimeType is Wolf}");
+                  debugPrint("myRole是啥？？");
                   print("myRole is $myRole");
                   print("myRole.runtimeType is ${myRole.runtimeType}");
 
-                  bool scrollable = gridHeight > MediaQuery.of(context).size.height;
+                  bool scrollable =
+                      gridHeight > MediaQuery.of(context).size.height;
 
                   Widget child = Column(
                     children: <Widget>[
@@ -350,7 +346,7 @@ class _RoomPageState extends State<RoomPage> {
                           padding: EdgeInsets.all(12),
                           child: Wrap(
                             children: <Widget>[
-                              Text("房间信息：${room.roomInfo}"),
+                              Text("房间信息：${mRoom.roomInfo}"),
                             ],
                           )),
                       Container(
@@ -370,9 +366,11 @@ class _RoomPageState extends State<RoomPage> {
                                 childAspectRatio: 1.0,
                                 physics: NeverScrollableScrollPhysics(),
                                 children: <Widget>[
-                                  for (var i in Iterable.generate(room.template.roles.length))
+                                  for (var i in Iterable.generate(
+                                      mRoom.template.roles.length))
                                     Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+                                      padding: EdgeInsets.symmetric(
+                                          vertical: 12, horizontal: 6),
                                       child: Stack(
                                         children: <Widget>[
                                           if (seatToPlayerMap[i] != null)
@@ -381,14 +379,23 @@ class _RoomPageState extends State<RoomPage> {
                                                 left: 0,
                                                 right: 0,
                                                 child: FutureBuilder(
-                                                  future: FirestoreProvider.instance.fetchPlayerDisplayName(seatToPlayerMap[i].uid),
-                                                  builder: (_, AsyncSnapshot<String> userNameSnapshot) {
-                                                    if (userNameSnapshot.hasData) {
+                                                  future: FirestoreProvider
+                                                      .instance
+                                                      .fetchPlayerDisplayName(
+                                                          seatToPlayerMap[i]
+                                                              .uid),
+                                                  builder: (_,
+                                                      AsyncSnapshot<String>
+                                                          userNameSnapshot) {
+                                                    if (userNameSnapshot
+                                                        .hasData) {
                                                       return Text(
                                                         userNameSnapshot.data,
-                                                        textAlign: TextAlign.center,
+                                                        textAlign:
+                                                            TextAlign.center,
                                                         maxLines: 1,
-                                                        style: TextStyle(fontSize: 13),
+                                                        style: TextStyle(
+                                                            fontSize: 13),
                                                       );
                                                     }
                                                     return Container();
@@ -410,32 +417,40 @@ class _RoomPageState extends State<RoomPage> {
                                 childAspectRatio: 1.0,
                                 physics: NeverScrollableScrollPhysics(),
                                 children: <Widget>[
-                                  for (var i in Iterable.generate(room.template.roles.length))
+                                  for (var i in Iterable.generate(
+                                      mRoom.template.roles.length))
                                     Padding(
                                       padding: EdgeInsets.all(12),
                                       child: TapDownWrapper(
                                         child: Material(
-                                          color: ((showWolves &&
-                                              room.players[i].role is Wolf &&
-                                              room.players[i].role.runtimeType != WolfRobot &&
-                                              room.players[i].role.runtimeType != Gargoyle) ||
-                                              ((anotherIndex ?? -1) == i))
+                                          color: (isNeedMarkPosition(i))
                                               ? Colors.red
                                               : Colors.orange,
-                                          borderRadius: BorderRadius.all(Radius.circular(16)),
+                                          borderRadius: BorderRadius.all(
+                                              Radius.circular(16)),
                                           elevation: 8,
                                           child: Stack(
                                             children: <Widget>[
                                               if (seatToPlayerMap[i] != null)
                                                 Positioned.fill(
                                                   child: FutureBuilder(
-                                                    future: FirestoreProvider.instance.getAvatar(seatToPlayerMap[i].uid),
-                                                    builder: (_, AsyncSnapshot<String> urlSnapshot) {
-                                                      Widget avatar = Container();
+                                                    future: FirestoreProvider
+                                                        .instance
+                                                        .getAvatar(
+                                                            seatToPlayerMap[i]
+                                                                .uid),
+                                                    builder: (_,
+                                                        AsyncSnapshot<String>
+                                                            urlSnapshot) {
+                                                      Widget avatar =
+                                                          Container();
                                                       if (urlSnapshot.hasData) {
-                                                        var url = urlSnapshot.data;
-                                                        avatar = FadeInImage.memoryNetwork(
-                                                          placeholder: kTransparentImage,
+                                                        var url =
+                                                            urlSnapshot.data;
+                                                        avatar = FadeInImage
+                                                            .memoryNetwork(
+                                                          placeholder:
+                                                              kTransparentImage,
                                                           image: url,
                                                           fit: BoxFit.cover,
                                                           width: 26,
@@ -443,8 +458,13 @@ class _RoomPageState extends State<RoomPage> {
                                                         );
                                                       } else {
                                                         if (!kIsWeb) {
-                                                          String rawSvg = Jdenticon.toSvg(seatToPlayerMap[i].uid);
-                                                          avatar = SvgPicture.string(
+                                                          String rawSvg =
+                                                              Jdenticon.toSvg(
+                                                                  seatToPlayerMap[
+                                                                          i]
+                                                                      .uid);
+                                                          avatar =
+                                                              SvgPicture.string(
                                                             rawSvg,
                                                             fit: BoxFit.cover,
                                                             height: 26,
@@ -454,35 +474,47 @@ class _RoomPageState extends State<RoomPage> {
                                                       }
 
                                                       return Stack(
-                                                        alignment: Alignment.center,
+                                                        alignment:
+                                                            Alignment.center,
                                                         children: <Widget>[
                                                           Positioned.fill(
                                                               child: ClipRRect(
-                                                                borderRadius: BorderRadius.circular(16),
-                                                                child: Container(color: Colors.white),
-                                                              )),
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        16),
+                                                            child: Container(
+                                                                color: Colors
+                                                                    .white),
+                                                          )),
                                                           Positioned.fill(
                                                               child: ClipRRect(
-                                                                borderRadius: BorderRadius.circular(16),
-                                                                child: avatar,
-                                                              )),
+                                                            borderRadius:
+                                                                BorderRadius
+                                                                    .circular(
+                                                                        16),
+                                                            child: avatar,
+                                                          )),
                                                           Positioned.fill(
                                                               child: ClipRRect(
-                                                                  borderRadius: BorderRadius.circular(16),
-                                                                  child: ImageFiltered(
-                                                                    imageFilter: ImageFilter.blur(sigmaX: 0, sigmaY: 0),
+                                                                  borderRadius:
+                                                                      BorderRadius
+                                                                          .circular(
+                                                                              16),
+                                                                  child:
+                                                                      ImageFiltered(
+                                                                    imageFilter: ImageFilter.blur(
+                                                                        sigmaX:
+                                                                            0,
+                                                                        sigmaY:
+                                                                            0),
                                                                     child: Container(
                                                                         decoration: BoxDecoration(
-                                                                            color: ((showWolves &&
-                                                                                room.players[i].role is Wolf &&
-                                                                                room.players[i].role.runtimeType != WolfRobot &&
-                                                                                room.players[i].role.runtimeType != Gargoyle) ||
-                                                                                ((anotherIndex ?? -1) == i))
+                                                                            color: (isNeedMarkPosition(i))
                                                                                 ? Colors.red.shade400.withOpacity(0.8)
                                                                                 : Colors.grey.shade200.withOpacity(0.4)),
                                                                         child: Container()),
-                                                                  )
-                                                              )),
+                                                                  ))),
                                                         ],
                                                       );
                                                     },
@@ -490,26 +522,45 @@ class _RoomPageState extends State<RoomPage> {
                                                 ),
                                               Container(
                                                 child: Padding(
-                                                  padding: EdgeInsets.only(left: 12, top: 12),
-                                                  child: Text((i + 1).toString(), style: TextStyle(fontWeight: FontWeight.bold)),
+                                                  padding: EdgeInsets.only(
+                                                      left: 12, top: 12),
+                                                  child: Text(
+                                                      (i + 1).toString(),
+                                                      style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.bold)),
                                                 ),
-                                                decoration: BoxDecoration(borderRadius: BorderRadius.all(Radius.circular(16))),
+                                                decoration: BoxDecoration(
+                                                    borderRadius:
+                                                        BorderRadius.all(
+                                                            Radius.circular(
+                                                                16))),
                                               ),
                                               if (mySeatNumber == i)
                                                 Align(
-                                                  alignment: Alignment.bottomRight,
+                                                  alignment:
+                                                      Alignment.bottomRight,
                                                   child: Container(
                                                     child: Padding(
-                                                      padding: EdgeInsets.only(right: 8, bottom: 8),
-                                                      child: Icon(Icons.event_seat),
+                                                      padding: EdgeInsets.only(
+                                                          right: 8, bottom: 8),
+                                                      child: Icon(
+                                                          Icons.event_seat),
                                                     ),
-                                                    decoration: BoxDecoration(borderRadius: BorderRadius.all(Radius.circular(16))),
+                                                    decoration: BoxDecoration(
+                                                        borderRadius:
+                                                            BorderRadius.all(
+                                                                Radius.circular(
+                                                                    16))),
                                                   ),
                                                 ),
                                               Positioned.fill(
                                                 child: InkWell(
-                                                  splashColor: Colors.orangeAccent,
-                                                  borderRadius: BorderRadius.all(Radius.circular(16)),
+                                                  splashColor:
+                                                      Colors.orangeAccent,
+                                                  borderRadius:
+                                                      BorderRadius.all(
+                                                          Radius.circular(16)),
                                                   child: Container(
                                                     width: double.infinity,
                                                     height: double.infinity,
@@ -529,30 +580,47 @@ class _RoomPageState extends State<RoomPage> {
                         ),
                       ),
                       if (scrollable == false) Spacer(),
-                      if (imActioner) Padding(padding: EdgeInsets.only(bottom: 12), child: Text(actionMessage)),
-                      if (room.currentActionRole is LuckySon) Padding(padding: EdgeInsets.only(bottom: 12), child: Text("请确认自己是否是幸运儿")),
+                      if (imActioner)
+                        Padding(
+                            padding: EdgeInsets.only(bottom: 12),
+                            child: Text(actionMessage)),
+                      if (mRoom.currentActionRole is LuckySon)
+                        Padding(
+                            padding: EdgeInsets.only(bottom: 12),
+                            child: Text("请确认自己是否是幸运儿")),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: buildPadding(children: [
-                          if (room.currentActionRole is LuckySon && giftDialogShowed == false)
+                          if (mRoom.currentActionRole is LuckySon &&
+                              giftDialogShowed == false)
                             Padding(
                               padding: EdgeInsets.only(bottom: 12),
                               child: ElevatedButton(
                                 child: Text('查看礼物'),
-                                style: OutlinedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor, shape: StadiumBorder()),
+                                style: OutlinedButton.styleFrom(
+                                    backgroundColor:
+                                        Theme.of(context).primaryColor,
+                                    shape: StadiumBorder()),
                                 onPressed: () {
-                                  if (giftDialogShowed == false) showGiftDialog();
+                                  if (giftDialogShowed == false)
+                                    showGiftDialog();
                                 },
                               ),
                             ),
-                          if (imHost && room.roomStatus == RoomStatus.seating)
+                          if (imHost && mRoom.roomStatus == RoomStatus.seating)
                             Padding(
                               padding: EdgeInsets.only(bottom: 12),
                               child: ElevatedButton(
                                 child: Text('准备看牌'),
-                                style: OutlinedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor, shape: StadiumBorder()),
+                                style: OutlinedButton.styleFrom(
+                                    backgroundColor:
+                                        Theme.of(context).primaryColor,
+                                    shape: StadiumBorder()),
                                 onPressed: () {
-                                  if (players.values.where((element) => element != null).length != room.template.numberOfPlayers) {
+                                  if (players.values
+                                          .where((element) => element != null)
+                                          .length !=
+                                      mRoom.template.numberOfPlayers) {
                                     showNotAllSeatedDialog();
                                   } else {
                                     showFlipRoleCardDialog();
@@ -560,72 +628,102 @@ class _RoomPageState extends State<RoomPage> {
                                 },
                               ),
                             ),
-                          if (imHost && room.roomStatus == RoomStatus.seated)
+                          if (imHost && mRoom.roomStatus == RoomStatus.seated)
                             Padding(
                               padding: EdgeInsets.only(bottom: 12),
                               child: ElevatedButton(
                                 child: Text('开始游戏'),
-                                style: OutlinedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor, shape: StadiumBorder()),
+                                style: OutlinedButton.styleFrom(
+                                    backgroundColor:
+                                        Theme.of(context).primaryColor,
+                                    shape: StadiumBorder()),
                                 onPressed: () {
                                   showStartGameDialog();
                                 },
                               ),
                             ),
-                          if (imActioner && myRole is! Hunter && myRole is! BlackTrader && myRole is! WolfRobot)
+                          if (imActioner &&
+                              myRole is! Hunter &&
+                              myRole is! BlackTrader &&
+                              myRole is! WolfRobot)
                             Padding(
                               padding: EdgeInsets.only(bottom: 12),
                               child: ElevatedButton(
                                 child: Text('不使用技能'),
-                                style: OutlinedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor, shape: StadiumBorder()),
+                                style: OutlinedButton.styleFrom(
+                                    backgroundColor:
+                                        Theme.of(context).primaryColor,
+                                    shape: StadiumBorder()),
                                 onPressed: () {
                                   showActionConfirmDialog(-1);
                                 },
                               ),
                             ),
+                          // 第一晚結束 加查看死亡信息Button給host
                           if (imHost && firstNightEnded)
                             Padding(
                               padding: EdgeInsets.only(bottom: 12),
                               child: ElevatedButton(
                                 child: Text('查看昨晚信息'),
-                                style: OutlinedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor, shape: StadiumBorder()),
+                                style: OutlinedButton.styleFrom(
+                                    backgroundColor:
+                                        Theme.of(context).primaryColor,
+                                    shape: StadiumBorder()),
                                 onPressed: () {
                                   showLastNightConfirmDialog();
                                 },
                               ),
                             ),
-                          if (room.roomStatus != RoomStatus.seating && mySeatNumber != null)
+                          // enable所有人查看身份button
+                          if (mRoom.roomStatus != RoomStatus.seating &&
+                              mySeatNumber != null)
                             Padding(
                               padding: EdgeInsets.only(bottom: 12),
                               child: ElevatedButton(
                                 child: Text('查看身份'),
-                                style: OutlinedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor, shape: StadiumBorder()),
+                                style: OutlinedButton.styleFrom(
+                                    backgroundColor:
+                                        Theme.of(context).primaryColor,
+                                    shape: StadiumBorder()),
                                 onPressed: () {
                                   showRoleCardDialog();
                                 },
                               ),
                             ),
+                          //第一晚結束 加重新开始button給host
                           if (imHost && firstNightEnded)
                             Padding(
                               padding: EdgeInsets.only(bottom: 12),
                               child: ElevatedButton(
                                 child: Text('重新开始'),
-                                style: OutlinedButton.styleFrom(backgroundColor: Theme.of(context).primaryColor, shape: StadiumBorder()),
+                                style: OutlinedButton.styleFrom(
+                                    backgroundColor:
+                                        Theme.of(context).primaryColor,
+                                    shape: StadiumBorder()),
                                 onPressed: () {
                                   showRestartConfirmDialog();
                                 },
                               ),
                             ),
-                          if (room.roomStatus == RoomStatus.seating && mySeatNumber != null)
+                          //人沒坐滿 disable查看身份button
+                          if (mRoom.roomStatus == RoomStatus.seating &&
+                              mySeatNumber != null)
                             Padding(
                               padding: EdgeInsets.only(bottom: 12),
                               child: ElevatedButton(
                                 child: Text('查看身份'),
-                                style: OutlinedButton.styleFrom(backgroundColor: Colors.grey, shape: StadiumBorder()),
+                                style: OutlinedButton.styleFrom(
+                                    backgroundColor: Colors.grey,
+                                    shape: StadiumBorder()),
                                 onPressed: () {
-                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(SnackBar(
                                     content: Text('等待房主确认所有人已入座'),
-                                    action:
-                                        SnackBarAction(label: '好', onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar()),
+                                    action: SnackBarAction(
+                                        label: '好',
+                                        onPressed: () =>
+                                            ScaffoldMessenger.of(context)
+                                                .hideCurrentSnackBar()),
                                   ));
                                 },
                               ),
@@ -636,7 +734,9 @@ class _RoomPageState extends State<RoomPage> {
                     ],
                   );
 
-                  return scrollable ? SingleChildScrollView(child: child) : child;
+                  return scrollable
+                      ? SingleChildScrollView(child: child)
+                      : child;
                 }
 
                 return Center(
@@ -647,205 +747,73 @@ class _RoomPageState extends State<RoomPage> {
         onWillPop: () => Future.value(false));
   }
 
+  //TODO ??
+  bool isNeedMarkPosition(i) {
+    return (showWolves &&
+            mRoom.players[i].role is Wolf &&
+            mRoom.players[i].role.runtimeType != WolfRobot &&
+            mRoom.players[i].role.runtimeType != Gargoyle ||
+        ((anotherIndex ?? -1) == i));
+  }
+
+  List<Widget> buildPadding({List<Widget> children}) {
+    for (int i = 1; i < children.length; i += 2)
+      children.insert(i, SizedBox(width: 12));
+    return children;
+  }
+
+  bool isShowingWolf() {
+    return myRole is Wolf &&
+        myRole is Nightmare == false &&
+        myRole is Gargoyle == false &&
+        myRole is HiddenWolf == false &&
+        myRole is WolfRobot == false &&
+        myRole is WolfBrother == false;
+  }
+
+  bool isSpecialWolf(Role role) {
+    return role is Wolf && myRole is WolfKing ||
+        myRole is WolfQueen ||
+        myRole is Nightmare ||
+        myRole is WolfBrother ||
+        myRole is BloodMoon;
+  }
+
+  bool isHostUid(String myUid) {
+    if (myUid == mRoom.hostUid) return true;
+    return false;
+  }
+
+  void initialRoomStatus() {
+    imActioner = false;
+    showWolves = false;
+    hasShown = false;
+    firstNightEnded = false;
+    imMagician = false;
+    luckySonPlayed = false;
+    hasShownLuckySonDialog = false;
+    hasPlayedLuckSon = false;
+    mHasSkilledWolf = false;
+    giftDialogShowed = false;
+  }
+
   void onSeatTapped(int index) {
-    if (room.roomStatus == RoomStatus.seating) {
+    if (mRoom.roomStatus == RoomStatus.seating) {
       if (imHost == false && index == mySeatNumber)
         showLeaveSeatDialog(index);
       else
         showEnterSeatDialog(index);
     } else if (imActioner) {
-      if (room.currentActionRole is Magician && anotherIndex == null) {
+      if (mRoom.currentActionRole is Magician && anotherIndex == null) {
         setState(() {
           anotherIndex = index;
         });
-      } else if (room.currentActionRole is BlackTrader) {
+      } else if (mRoom.currentActionRole is BlackTrader) {
         if (index != mySeatNumber) showBlackTraderActionDialog(index);
       } else {
         showActionConfirmDialog(index);
       }
     }
-  }
-
-  showActionResultDialog(int index, String msg) {
-    Widget continueButton = TextButton(
-        child: Text("确定"),
-        onPressed: () {
-          Navigator.pop(context);
-
-          Timer(endingDuration, () => room.proceed(index));
-        });
-
-    AlertDialog alert = AlertDialog(
-      title: Text("${index + 1}号是$msg。"),
-      actions: [
-        continueButton,
-      ],
-    );
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return alert;
-      },
-    );
-  }
-
-  showBlackTraderActionDialog(int giftedIndex) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return BlackTraderDialog(
-            index: giftedIndex,
-            onCancel: () => Navigator.pop(context),
-            onContinue: (Type giftedType) {
-              Navigator.pop(context);
-              Timer(endingDuration, () => room.proceed(giftedIndex, giftedByBlackTrader: giftedType));
-            });
-      },
-    );
-  }
-
-  showWitchActionDialog(int killedIndex) {
-    Widget cancelButton = TextButton(
-      child: Text("不救助"),
-      onPressed: () {
-        Navigator.pop(context);
-        showWitchNextStepDialog();
-      },
-    );
-    Widget continueButton = TextButton(
-      child: Text(
-        "救助",
-        style: TextStyle(color: killedIndex == mySeatNumber ? Colors.grey : Colors.orange),
-      ),
-      onPressed: () {
-        if (killedIndex == mySeatNumber) {
-          ScaffoldMessenger.of(context).hideCurrentSnackBar();
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('女巫无法自救'),
-            action: SnackBarAction(label: '惨', onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar()),
-          ));
-        } else {
-          Navigator.pop(context);
-          Timer(endingDuration, () => room.proceed(killedIndex, usePoison: false));
-        }
-      },
-    );
-
-    ///狼队空刀，无人倒台
-    if (killedIndex == -1) {
-      continueButton = TextButton(
-        child: Text(
-          "好",
-          style: TextStyle(color: killedIndex == mySeatNumber ? Colors.grey : Colors.orange),
-        ),
-        onPressed: () => Navigator.pop(context),
-      );
-    }
-
-    AlertDialog alert = AlertDialog(
-      title: Text(killedIndex == -1 ? "昨夜无人倒台" : "昨夜倒台玩家为${killedIndex + 1}号。"),
-      content: Text(killedIndex == -1 ? "" : "是否救助?"),
-      actions: [
-        if (killedIndex != -1) cancelButton,
-        continueButton,
-      ],
-    );
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return alert;
-      },
-    );
-  }
-
-  ///在女巫选择不救助后，提示女巫下一步操作，即是否使用毒药
-  showWitchNextStepDialog() {
-    Widget continueButton = TextButton(
-      child: Text("好"),
-      onPressed: () => Navigator.pop(context),
-    );
-
-    AlertDialog alert = AlertDialog(
-      title: Text("请选择是否使用毒药。"),
-      content: Text("点击玩家头像使用毒药，如不使用毒药，请点击下方「不使用技能」"),
-      actions: [
-        continueButton,
-      ],
-    );
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return alert;
-      },
-    );
-  }
-
-  showActionConfirmDialog(int index) {
-    Widget cancelButton = TextButton(
-        child: Text("取消"),
-        onPressed: () {
-          anotherIndex = null;
-          Navigator.pop(context);
-        });
-    Widget continueButton = TextButton(
-      child: Text("确定"),
-      onPressed: () {
-        Navigator.pop(context);
-
-        //如果index为-1，则视为不发动技能
-        if (index == -1) {
-          Timer(endingDuration, () => room.proceed(null));
-          return;
-        }
-
-        var msg = room.action(index);
-        if (msg != null) {
-          showActionResultDialog(index, msg);
-        } else if (room.currentActionRole is Magician) {
-          var target = anotherIndex + index * 100;
-
-          anotherIndex = null;
-
-          Timer(endingDuration, () => room.proceed(target));
-        } else {
-          Timer(endingDuration, () => room.proceed(index));
-        }
-      },
-    );
-
-    String msg;
-
-    if (index == -1) {
-      msg = "确定不发动技能吗？";
-    } else if (room.currentActionRole.runtimeType == Wolf) {
-      msg = "确定${Wolf().actionConfirmMessage}${index + 1}号玩家?";
-    } else {
-      msg = "确定${(myRole as ActionableMixin).actionConfirmMessage}${index + 1}号${anotherIndex == null ? "" : "和${anotherIndex + 1}号玩家"}?";
-    }
-
-    // set up the AlertDialog
-    AlertDialog alert = AlertDialog(
-      title: Text(index == -1 ? "不发动技能" : "使用技能"),
-      content: Text(msg),
-      actions: [
-        cancelButton,
-        continueButton,
-      ],
-    );
-
-    // show the dialog
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return alert;
-      },
-    );
   }
 
   void showEnterSeatDialog(int index) {
@@ -857,7 +825,9 @@ class _RoomPageState extends State<RoomPage> {
     Widget continueButton = TextButton(
       child: Text("确定"),
       onPressed: () {
-        FirestoreProvider.instance.takeSeat(widget.roomNumber, index, mySeatNumber).then((result) {
+        FirestoreProvider.instance
+            .takeSeat(widget.roomNumber, index, mySeatNumber)
+            .then((result) {
           Navigator.pop(context);
 
           if (result == -1) showConflictDialog(index);
@@ -896,7 +866,9 @@ class _RoomPageState extends State<RoomPage> {
       onPressed: () {
         mySeatNumber = null;
 
-        FirestoreProvider.instance.leaveSeat(widget.roomNumber, index).then((_) => Navigator.pop(context));
+        FirestoreProvider.instance
+            .leaveSeat(widget.roomNumber, index)
+            .then((_) => Navigator.pop(context));
       },
     );
 
@@ -930,6 +902,198 @@ class _RoomPageState extends State<RoomPage> {
       title: Text("${index + 1}号座已被占用"),
       content: Text("请选择其他位置。"),
       actions: [
+        continueButton,
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  void showActionResultDialog(int index, String msg) {
+    Widget continueButton = TextButton(
+        child: Text("确定"),
+        onPressed: () {
+          Navigator.pop(context);
+
+          Timer(endingDuration, () => mRoom.proceed(index));
+        });
+
+    AlertDialog alert = AlertDialog(
+      title: Text("${index + 1}号是$msg。"),
+      actions: [
+        continueButton,
+      ],
+    );
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  void showBlackTraderActionDialog(int giftedIndex) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return BlackTraderDialog(
+            index: giftedIndex,
+            onCancel: () => Navigator.pop(context),
+            onContinue: (Type giftedType) {
+              Navigator.pop(context);
+              Timer(endingDuration,
+                  () => mRoom.proceed(giftedIndex, giftedByOther: giftedType));
+            });
+      },
+    );
+  }
+
+  void showWitchActionDialog(int killedIndex) {
+    Widget cancelButton = TextButton(
+      child: Text("不救助"),
+      onPressed: () {
+        Navigator.pop(context);
+        showWitchNextStepDialog();
+      },
+    );
+    Widget continueButton = TextButton(
+      child: Text(
+        "救助",
+        style: TextStyle(
+            color: killedIndex == mySeatNumber ? Colors.grey : Colors.orange),
+      ),
+      onPressed: () {
+        if (killedIndex == mySeatNumber) {
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('女巫无法自救'),
+            action: SnackBarAction(
+                label: '惨',
+                onPressed: () =>
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar()),
+          ));
+        } else {
+          Navigator.pop(context);
+          Timer(endingDuration,
+              () => mRoom.proceed(killedIndex, usePoison: false));
+        }
+      },
+    );
+
+    ///狼队空刀，无人倒台
+    if (killedIndex == -1) {
+      continueButton = TextButton(
+        child: Text(
+          "好",
+          style: TextStyle(
+              color: killedIndex == mySeatNumber ? Colors.grey : Colors.orange),
+        ),
+        onPressed: () => Navigator.pop(context),
+      );
+    }
+
+    AlertDialog alert = AlertDialog(
+      title: Text(killedIndex == -1 ? "昨夜无人倒台" : "昨夜倒台玩家为${killedIndex + 1}号。"),
+      content: Text(killedIndex == -1 ? "" : "是否救助?"),
+      actions: [
+        if (killedIndex != -1) cancelButton,
+        continueButton,
+      ],
+    );
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  ///在女巫选择不救助后，提示女巫下一步操作，即是否使用毒药
+  void showWitchNextStepDialog() {
+    Widget continueButton = TextButton(
+      child: Text("好"),
+      onPressed: () => Navigator.pop(context),
+    );
+
+    AlertDialog alert = AlertDialog(
+      title: Text("请选择是否使用毒药。"),
+      content: Text("点击玩家头像使用毒药，如不使用毒药，请点击下方「不使用技能」"),
+      actions: [
+        continueButton,
+      ],
+    );
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  void showActionConfirmDialog(int index) {
+    Widget cancelButton = TextButton(
+        child: Text("取消"),
+        onPressed: () {
+          anotherIndex = null;
+          Navigator.pop(context);
+        });
+    Widget continueButton = TextButton(
+      child: Text("确定"),
+      onPressed: () {
+        Navigator.pop(context);
+
+        //如果index为-1，则视为不发动技能
+        if (index == -1) {
+          Timer(endingDuration, () => mRoom.proceed(null));
+          return;
+        }
+
+        var msg = mRoom.action(index);
+        if (msg != null) {
+          if (mRoom.currentActionRole is Shadow)
+            showShadowStatusDialog(msg);
+          else
+            showActionResultDialog(index, msg);
+        } else if (mRoom.currentActionRole is Magician) {
+          var target = anotherIndex + index * 100;
+
+          anotherIndex = null;
+
+          Timer(endingDuration, () => mRoom.proceed(target));
+        } else
+          Timer(endingDuration, () => mRoom.proceed(index));
+      },
+    );
+
+    String msg = "";
+    var role = mRoom.currentActionRole;
+    if (index == -1) {
+      msg = "确定不发动技能吗？";
+    } else if (role.runtimeType == Wolf) {
+      msg = "确定${Wolf().actionConfirmMessage}${index + 1}号玩家?";
+    } else {
+      msg =
+          "确定${(myRole as ActionableMixin).actionConfirmMessage}${index + 1}号${anotherIndex == null ? "" : "和${anotherIndex + 1}号玩家"}?";
+    }
+
+    // set up the AlertDialog
+    AlertDialog alert = AlertDialog(
+      title: Text(index == -1 ? "不发动技能" : "使用技能"),
+      content: Text(msg),
+      actions: [
+        cancelButton,
         continueButton,
       ],
     );
@@ -988,7 +1152,7 @@ class _RoomPageState extends State<RoomPage> {
     // set up the AlertDialog
     AlertDialog alert = AlertDialog(
       title: Text("昨夜信息"),
-      content: Text(room.lastNightInfo),
+      content: Text(mRoom.lastNightInfo),
       actions: [
         continueButton,
       ],
@@ -1012,8 +1176,6 @@ class _RoomPageState extends State<RoomPage> {
       },
     );
 
-    bool showArtwork = this.artworkEnabled;
-
     // set up the AlertDialog
     AlertDialog alert = AlertDialog(
       backgroundColor: Colors.black,
@@ -1021,13 +1183,14 @@ class _RoomPageState extends State<RoomPage> {
         "你的底牌是：",
         style: TextStyle(color: Colors.white),
       ),
-      content: showArtwork
+      content: this.artworkEnabled
           ? Container(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: <Widget>[
-                  Image.asset(RoleImageProvider.instance[myRole], fit: BoxFit.fitHeight),
+                  Image.asset(RoleImageProvider.instance[myRole],
+                      height: 300, fit: BoxFit.fitHeight),
                   Text(
                     myRole.roleName,
                     style: TextStyle(color: Colors.white),
@@ -1092,7 +1255,7 @@ class _RoomPageState extends State<RoomPage> {
 
         playAudio(JudgeAudioProvider.instance.night);
 
-        Timer(Duration(seconds: 8), () => room.startGame());
+        Timer(Duration(seconds: 8), () => mRoom.startGame());
         //FirestoreProvider.instance.startGame();
       },
     );
@@ -1126,7 +1289,7 @@ class _RoomPageState extends State<RoomPage> {
       child: Text("确定"),
       onPressed: () {
         Navigator.pop(context);
-        this.room.restart();
+        this.mRoom.restart();
       },
     );
 
@@ -1174,32 +1337,6 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  void showWolfBrotherActionMessage(ActionableMixin actionableMixin) {
-    Widget continueButton = TextButton(
-        child: Text("结束互认"),
-        onPressed: () {
-          Navigator.pop(context);
-          //playEndingAudio();
-          room.proceed(null);
-        });
-
-    AlertDialog alert = AlertDialog(
-      title: Text(actionableMixin.actionMessage),
-      content: Text(""),
-      actions: [
-        continueButton,
-      ],
-    );
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return alert;
-      },
-    );
-  }
-
   void showActionMessage(ActionableMixin actionableMixin) {
     Widget continueButton = TextButton(
       child: Text("好"),
@@ -1225,70 +1362,13 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  void showHunterStatusDialog(ActionableMixin actionableMixin) {
-    Widget continueButton = TextButton(
-      child: Text("好"),
-      onPressed: () {
-        Navigator.pop(context);
-        Timer(endingDuration, () => room.proceed(null));
-      },
-    );
-
-    // set up the AlertDialog
-    AlertDialog alert = AlertDialog(
-      title: Text(actionableMixin.actionMessage),
-      content: Text(room.hunterStatus ? "可以发动" : "不可发动"),
-      actions: [
-        continueButton,
-      ],
-    );
-
-    // show the dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return alert;
-      },
-    );
-  }
-
-  void showWolfKingStatusDialog(ActionableMixin actionableMixin) {
+  void showActionForbiddenDialog() {
     Widget continueButton = TextButton(
       child: Text("好"),
       onPressed: () {
         Navigator.pop(context);
 
-        Timer(endingDuration, () => room.proceed(null));
-      },
-    );
-
-    // set up the AlertDialog
-    AlertDialog alert = AlertDialog(
-      title: Text(actionableMixin.actionMessage),
-      content: Text(room.wolfKingStatus ? "可以发动" : "不可发动"),
-      actions: [
-        continueButton,
-      ],
-    );
-
-    // show the dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return alert;
-      },
-    );
-  }
-
-  showActionForbiddenDialog() {
-    Widget continueButton = TextButton(
-      child: Text("好"),
-      onPressed: () {
-        Navigator.pop(context);
-
-        if (imActioner) Timer(endingDuration, () => room.proceed(null));
+        if (imActioner) Timer(endingDuration, () => mRoom.proceed(null));
       },
     );
 
@@ -1319,7 +1399,181 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  showLuckySonVerificationDialog() {
+  void showWolfBrotherActionMessage(ActionableMixin actionableMixin) {
+    Widget continueButton = TextButton(
+        child: Text("结束互认"),
+        onPressed: () {
+          Navigator.pop(context);
+          //playEndingAudio();
+          mRoom.proceed(null);
+        });
+
+    AlertDialog alert = AlertDialog(
+      title: Text(actionableMixin.actionMessage),
+      content: Text(""),
+      actions: [
+        continueButton,
+      ],
+    );
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  void showHunterStatusDialog(ActionableMixin actionableMixin) {
+    Widget continueButton = TextButton(
+      child: Text("好"),
+      onPressed: () {
+        Navigator.pop(context);
+        Timer(endingDuration, () => mRoom.proceed(null));
+      },
+    );
+
+    // set up the AlertDialog
+    AlertDialog alert = AlertDialog(
+      title: Text(actionableMixin.actionMessage),
+      content: Text(mRoom.hunterStatus ? "可以发动" : "不可发动"),
+      actions: [
+        continueButton,
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  void showWolfKingStatusDialog(ActionableMixin actionableMixin) {
+    Widget continueButton = TextButton(
+      child: Text("好"),
+      onPressed: () {
+        Navigator.pop(context);
+
+        Timer(endingDuration, () => mRoom.proceed(null));
+      },
+    );
+
+    // set up the AlertDialog
+    AlertDialog alert = AlertDialog(
+      title: Text(actionableMixin.actionMessage),
+      content: Text(mRoom.wolfKingStatus ? "可以发动" : "不可发动"),
+      actions: [
+        continueButton,
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  //TODO
+  void showShadowStatusDialog(String message) {
+    Widget continueButton = TextButton(
+      child: Text(message),
+      onPressed: () => Navigator.pop(context),
+    );
+
+    // set up the AlertDialog
+    AlertDialog alert = AlertDialog(
+      title: Text("是否在復仇者回合一同睜眼"),
+      actions: [
+        continueButton,
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  void showAvengerStatusDialog(
+      int killedIndex, ActionableMixin actionableMixin) {
+    var msg;
+    var number = mRoom.shadowSeatNumber;
+    if (mRoom.avengerSide == 0)
+      msg = "好人復仇者";
+    else if (mRoom.avengerSide == 1)
+      msg = "狼人復仇者";
+    else
+      msg = "與$number號影子為第三方";
+
+    Widget continueButton = TextButton(
+      child: Text("好"),
+      onPressed: () {
+        Navigator.pop(context);
+        showAvengerNextStepDialog();
+      },
+    );
+
+    AlertDialog alert = AlertDialog(
+      title: Text(actionableMixin.actionMessage),
+      content: Text(msg),
+      actions: [
+        continueButton,
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  void showAvengerNextStepDialog() {
+    var isKilled = mRoom.isAvengerBeKilled;
+    Widget continueButton = TextButton(
+      child: Text("好"),
+      onPressed: () {
+        Navigator.pop(context);
+        if (!isKilled) mRoom.proceed(null);
+      },
+    );
+
+    // set up the AlertDialog
+    AlertDialog alert = AlertDialog(
+      title: Text(isKilled ? "昨夜倒台玩家为${mySeatNumber + 1}号。" : "無法使用技能"),
+      content: Text(isKilled ? "点击玩家头像使用技能，如不使用技能，请点击下方「不使用技能」" : ""),
+      actions: [
+        continueButton,
+      ],
+    );
+
+    // show the dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return alert;
+      },
+    );
+  }
+
+  void showLuckySonVerificationDialog() {
     Widget continueButton = TextButton(
       child: Text("好"),
       onPressed: () {
@@ -1345,21 +1599,21 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  showGiftDialog() {
+  void showGiftDialog() {
     Widget continueButton = TextButton(
       child: Text("确认"),
       onPressed: () {
         Navigator.pop(context);
 
-        room.checkInForLuckySonVerifications(mySeatNumber);
+        mRoom.checkInForLuckySonVerifications(mySeatNumber);
 
         giftDialogShowed = true;
       },
     );
 
     AlertDialog alert = AlertDialog(
-      title: Text(mySeatNumber == room.luckySonIndex ? "你收到了礼物" : "你没有收到礼物"),
-      content: Text(mySeatNumber == room.luckySonIndex ? room.giftInfo : ''),
+      title: Text(mySeatNumber == mRoom.luckySonIndex ? "你收到了礼物" : "你没有收到礼物"),
+      content: Text(mySeatNumber == mRoom.luckySonIndex ? mRoom.giftInfo : ''),
       actions: [
         continueButton,
       ],
@@ -1374,23 +1628,18 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  List<Widget> buildPadding({List<Widget> children}) {
-    for (int i = 1; i < children.length; i += 2) {
-      children.insert(i, SizedBox(width: 12));
-    }
-
-    return children;
-  }
-
+  //音頻
   void playAudio(String audioPath) async {
     print("The audio path is $audioPath");
 
-    if(this.mounted) {
+    if (this.mounted) {
       var tempDir = await getTemporaryDirectory();
       var tempPath = tempDir.path + '/' + audioPath.replaceFirst('/', '_');
       File file = File(tempPath);
       var audioFile = await rootBundle.load('assets/' + audioPath);
-      file.writeAsBytes(audioFile.buffer.asUint8List()).whenComplete(() => audioPlayer.play(tempPath));
+      file
+          .writeAsBytes(audioFile.buffer.asUint8List())
+          .whenComplete(() => audioPlayer.play(tempPath));
     }
   }
 }

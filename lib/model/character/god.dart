@@ -1,4 +1,4 @@
-import 'actionable_mixin.dart';
+import '../actionable_mixin.dart';
 import 'role.dart';
 
 export 'seer.dart';
@@ -20,7 +20,11 @@ export 'thief.dart';
 export 'witcher.dart';
 export 'psychic.dart';
 
-export 'player.dart';
+export '../player.dart';
+
+//影復
+export 'shadow.dart';
+export 'avenger.dart';
 
 abstract class God extends Role with ActionableMixin {
   God({String roleName}) : super(roleName: roleName);

@@ -1,4 +1,4 @@
-import 'package:werewolfjudge/model/role.dart';
+import 'package:werewolfjudge/model/character/role.dart';
 
 class JudgeAudioProvider {
   static final instance = JudgeAudioProvider._();

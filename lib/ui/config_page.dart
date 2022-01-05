@@ -5,7 +5,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:vibration/vibration.dart';
 
 import 'package:werewolfjudge/model/template.dart';
-import 'package:werewolfjudge/model/wolf_seeder.dart';
 import 'package:werewolfjudge/resource/firebase_auth_provider.dart';
 import 'package:werewolfjudge/resource/firestore_provider.dart';
 import 'room_page.dart';
